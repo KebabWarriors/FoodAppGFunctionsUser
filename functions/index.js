@@ -1,4 +1,5 @@
 const functions = require('firebase-functions');
+const admin = require('firebase-admin');
 
 // // Create and Deploy Your First Cloud Functions
 // // https://firebase.google.com/docs/functions/write-firebase-functions
@@ -16,9 +17,14 @@ const driver = neo4j.driver(
    { disableLosslessIntegers: true }
 );
 
+
 const cors = require('cors')({
   origin: true
 });
+
+
+const Stripe = require("stripe");
+const stripe = Stripe("sk_test_51H4UivJ0n1vUgoZKN5bPsWmydn1JBhAjNxVc9tr66z8bt9p1OGL235Tw3ES5VOnFwmV8gbm7CswljnjoHvOxRF5C00qmuVjfJ6");
 
 // Configure the email transport using the default SMTP transport and a GMail account.
 // For Gmail, enable these:
@@ -60,11 +66,13 @@ exports.registerUser =  functions.auth.user().onCreate((user)=>{
   const email = user.email;
   const name = user.displayName;
   const userId = user.uid;
-  return addUser(name,email,userId);
+  const phone = user.phoneNumber;
+  return createStripeCustomer(name,email,userId);
 });
 
 //[End Register user in database]
 // [END sendWelcomeEmail]
+
 
 // [START sendByeEmail]
 /**
@@ -75,7 +83,7 @@ exports.sendByeEmail = functions.auth.user().onDelete((user) => {
 // [END onDeleteTrigger]
   const email = user.email;
   const displayName = user.displayName;
-
+  const phone = user.phoneNumber;
   return sendGoodbyeEmail(email, displayName);
 });
 // [END sendByeEmail]
@@ -95,17 +103,40 @@ async function sendWelcomeEmail(email, displayName) {
   return null;
 }
 
-async function addUser(name,email,id){
+async function addUser(name,email,id,customer){
   const session = driver.session();
   let response = {};
-  const setData = session.run(`create (p:person{id: $id,name: $name, email: $email, verified: true, type: 1}) return p`,{
+  const setData = await session.run(`create (p:person{
+	  id: $id,
+	  email: $email, 
+	  verified: true, 
+	  type: 1,
+	  customerId: $customerId
+       }) return p`,{
 	id: id,
-	name: name,
-	email: email
+	email: email,
+	customerId: customer
   }).then((result) => {
 	let response = result.records[0]._fields[0].properties;
   }).catch(error => console.log(JSON.stringify(error)));
   return response;
+}
+
+async function createStripeCustomer(name,email,id){
+   let myCustomer;
+   const customer = await stripe.customers.create({
+       name: id
+   }, (error, customer) =>
+   {
+     myCustomer = customer.id;
+     console.log(customer.id);
+     addUser(name,email,id,customer.id);
+   }); 
+   if(customer){
+     return customer.id;
+   }
+   console.log(JSON.stringify(customer));
+   return myCustomer;
 }
 
 // Sends a goodbye email to the given user.
@@ -124,7 +155,17 @@ async function sendGoodbyeEmail(email, displayName) {
 }
 
 exports.verify = functions.https.onRequest((req, res)=>{
-  let cors(req,res,()=>{
-	req.body.token	
-  });
+  return cors(req,res,()=>{
+    const app = admin.initializeApp();
+    let uid = null;
+    admin.auth().verifyIdToken(idToken)
+  	.then(function(decodedToken) {
+    	 uid = decodedToken.uid;
+    	
+    	}).catch(function(error) {
+    	// Handle error
+	  console.log(error);
+	});
+      res.status(200).send(uid);
+    });
 });
