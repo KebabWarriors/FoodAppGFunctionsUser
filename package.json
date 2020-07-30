@@ -1,0 +1,12 @@
+{
+  "name": "cloud-function-registration-trigger",
+  "version": "1.0.0",
+  "description": "verify token after registration with firebase",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "firebase deploy --only functions"
+  },
+  "author": "Victor Ernesto Martinez Leal",
+  "license": "ISC"
+}
