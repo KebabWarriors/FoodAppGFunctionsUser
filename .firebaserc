@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "biite-mobile-284703"
+    "default": "biite-mobile-284703",
+    "production": "biite-mobile-52786"
   }
 }
