@@ -17,7 +17,7 @@ const driver = neo4j.driver(
    { disableLosslessIntegers: true }
 );
 
-
+const express = require('express');
 const cors = require('cors')({
   origin: true
 });
@@ -99,12 +99,17 @@ exports.verify = functions.https.onRequest((req, res)=>{
     });
 });
 
-exports.getDeliveries = functions.https.onRequest((req,rest)=>{
-  return cors(req,res,async()=>{
-	const database = admin.firestore();
-	const data = await db.collection('deliveries').get();
-	data.forEach((doc)=>{
-	  console.log(doc.id,' = ',doc.data());
-	});
-  })
+exports.getDeliveries = functions.https.onRequest( (req,res)=>{
+    getDeliveries();
+    console.log("se supone que llegamos aqui");
+    return cors(req,res,()=>{
+     res.status(200).send("done");
+    })
 });
+
+async function getDeliveries(){
+  const database = admin.firestore();
+  const data = await database.collection('deliveries').get();
+  data.docs.map(doc => {console.log(doc.data())});
+  return data;
+}
