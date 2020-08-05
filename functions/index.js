@@ -130,9 +130,8 @@ async function createDelivery(data){
   const deliveries = await database.collection('deliveries');
   const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
-  	destination: data.destination,
 	restaurant: data.restaurant,
-  	location: new admin.firestore.GeoPoint(data.destination.lat,data.destination.lng),
+  	destination: new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
   	state: 0
   });
   return newRegister; 
