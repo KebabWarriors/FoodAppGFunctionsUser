@@ -27,6 +27,8 @@ const app = admin.initializeApp();
 const Stripe = require("stripe");
 const stripe = Stripe("sk_test_51H4UivJ0n1vUgoZKN5bPsWmydn1JBhAjNxVc9tr66z8bt9p1OGL235Tw3ES5VOnFwmV8gbm7CswljnjoHvOxRF5C00qmuVjfJ6");
 
+const { v4: uuidv4 } = require('uuid');
+
 
 //[Start Register user in database]
 exports.registerUser =  functions.auth.user().onCreate((user)=>{
@@ -83,19 +85,22 @@ async function createStripeCustomer(name,email,id){
    return myCustomer;
 }
 
-
 exports.verify = functions.https.onRequest((req, res)=>{
-  return cors(req,res,()=>{
+  return cors(req,res,async ()=>{
     let uid = null;
-    admin.auth().verifyIdToken(req.body.token)
+    console.log(req.body.token)
+    const data = await admin.auth().verifyIdToken(req.body.token)
   	.then(function(decodedToken) {
-    	 uid = decodedToken.uid;
+	  console.log(decodedToken);
+    	 return decodedToken.uid;
     	
     	}).catch(function(error) {
     	// Handle error
 	  console.log(error);
 	});
-      res.status(200).send(uid);
+      console.log(`next to send`)
+      console.log(data)
+      res.status(200).send(JSON.stringify(data));
     });
 });
 
@@ -112,4 +117,24 @@ async function getDeliveries(){
   const data = await database.collection('deliveries').get();
   data.docs.map(doc => {console.log(doc.data())});
   return data;
+}
+
+exports.createDelivery = functions.https.onRequest((req,res)=>{
+  return cors(req,res,()=>{
+	res.status(200).send(JSON.stringify(createDelivery(req.body)))			
+  });
+});
+
+async function createDelivery(data){
+  const database = admin.firestore();
+  const deliveries = await database.collection('deliveries');
+  const newRegister = await deliveries.doc().set({
+  	driver: data.driver,
+  	client: data.client,
+  	destination: data.destination,
+	restaurant: data.restaurant,
+  	location: data.location,
+  	state: 0
+  });
+  return newRegister; 
 }
