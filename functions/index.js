@@ -128,12 +128,11 @@ exports.createDelivery = functions.https.onRequest((req,res)=>{
 async function createDelivery(data){
   const database = admin.firestore();
   const deliveries = await database.collection('deliveries');
-  const newRegister = await deliveries.doc().set({
-  	driver: data.driver,
+  const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
   	destination: data.destination,
 	restaurant: data.restaurant,
-  	location: data.location,
+  	location: new admin.firestore.GeoPoint(data.destination.lat,data.destination.lng),
   	state: 0
   });
   return newRegister; 
