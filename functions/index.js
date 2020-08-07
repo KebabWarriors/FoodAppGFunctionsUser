@@ -84,7 +84,7 @@ async function createStripeCustomer(name,email,id){
    console.log(JSON.stringify(customer));
    return myCustomer;
 }
-
+//[Verify TOKEN START]
 exports.verify = functions.https.onRequest((req, res)=>{
   return cors(req,res,async ()=>{
     let uid = null;
@@ -103,7 +103,9 @@ exports.verify = functions.https.onRequest((req, res)=>{
       res.status(200).send(JSON.stringify(data));
     });
 });
+//[Verify token END]
 
+//[Get Deliveries Start]
 exports.getDeliveries = functions.https.onRequest( (req,res)=>{
     getDeliveries();
     console.log("se supone que llegamos aqui");
@@ -118,6 +120,10 @@ async function getDeliveries(){
   data.docs.map(doc => {console.log(doc.data())});
   return data;
 }
+//[Get Deliveries End]
+
+
+
 //[Create Delivery START]
 exports.createDelivery = functions.https.onRequest((req,res)=>{
   return cors(req,res,async ()=>{
@@ -162,8 +168,8 @@ async function createJob(data){
 
 //[CREATE DRIVER START]
 exports.createDriver = functions.https.onRequest((req,res)=>{
-  return cors(req,res,async ()=>{
-	let newDriver = createDriver({email: req.body.email,name: req.body.name, password: generatePassword})
+  return cors(req,res,async ()=>{ 
+	let newDriver = await createDriver({email: req.body.email,name: req.body.name, password: generatePassword()})
 	res.status(200).send(JSON.stringify(newDriver))
   });
 });
@@ -200,10 +206,30 @@ async function createDriver(data){
      email: data.email,
      displayName: data.name,
      password: data.password
-  }).then((user)=>{
+  }).then(async (user)=>{
+	console.log(JSON.stringify(user))
 	newUser = user;
+	await claimForDriver(newUser.uid);
   });
   return newUser;
 }
 
+async function claimForDriver(id){
+   
+   let done = false;
+   await admin.auth().setCustomUserClaims(id,{driver:true}).then(()=>{
+	console.log('Se agrego un permiso de driver');
+	done = true;
+   });
+   return done;
+}
 //[CREATE DRIVER END]
+
+exports.assignDriverToJob = functions.firestore.document('jobs/{jobid}').onCreate(async (job,context)=>{
+  const database = admin.firestore();
+  const data = await database.collection('drivers').get();
+  data.docs.map(doc => {console.log(JSON.stringify(doc.id))});
+  /*data.docs.forEach((value,key)=>{
+	value.data.
+  });*/
+});
