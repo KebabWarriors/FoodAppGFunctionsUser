@@ -118,10 +118,11 @@ async function getDeliveries(){
   data.docs.map(doc => {console.log(doc.data())});
   return data;
 }
-
+//[Create Delivery START]
 exports.createDelivery = functions.https.onRequest((req,res)=>{
-  return cors(req,res,()=>{
-	res.status(200).send(JSON.stringify(createDelivery(req.body)))			
+  return cors(req,res,async ()=>{
+	let newDelivery = await createDelivery(req.body);
+	res.status(200).send(JSON.stringify(newDelivery));
   });
 });
 
@@ -130,9 +131,79 @@ async function createDelivery(data){
   const deliveries = await database.collection('deliveries');
   const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
+  	destination:  new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
 	restaurant: data.restaurant,
-  	destination: new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
-  	state: 0
+  	state: 0,
+	reference: data.reference
   });
   return newRegister; 
 }
+//[Create Delivey End]
+
+//[Create JOB START]
+exports.createJobForDriver = functions.firestore.document('/deliveries/{deliveryid}').onUpdate(async (change,context)=>{
+	const after = change.after.data();
+	if(parseInt(after.state) === 3){
+	  let newData = await createJob({id:context.params.deliveryid,...after});
+	}
+	return "HEY:"
+});
+
+async function createJob(data){
+  const database = admin.firestore();
+  const jobs = await database.collection('jobs');
+  const newJob = await jobs.doc(data.id).set({
+	  restaurant: data.restaurant,
+	  location: new admin.firestore.GeoPoint(parseFloat(43.473532), parseFloat(-3.785637)),
+  });
+  return newJob;
+}
+//[CREATE JOB END]
+
+//[CREATE DRIVER START]
+exports.createDriver = functions.https.onRequest((req,res)=>{
+  return cors(req,res,async ()=>{
+	let newDriver = createDriver({email: req.body.email,name: req.body.name, password: generatePassword})
+	res.status(200).send(JSON.stringify(newDriver))
+  });
+});
+
+function generatePassword(){
+    let length = 2,
+        charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*=+",
+        charsetL = "abcdefghijklmnopqrstuvwxyz",
+        charsetU = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        charNumber = "1234567890",
+        charSpecial = "!@#$%&*=+",
+        retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+        retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    for (let i = 0, n = charsetL.length; i < length; ++i) {
+        retVal += charsetL.charAt(Math.floor(Math.random() * n));
+    }
+    for (let i = 0, n = charsetU.length; i < length; ++i) {
+        retVal += charsetU.charAt(Math.floor(Math.random() * n));
+    }
+    for (let i = 0, n = charNumber.length; i < length; ++i) {
+        retVal += charNumber.charAt(Math.floor(Math.random() * n));
+    }
+    for (let i = 0, n = charSpecial.length; i < length; ++i) {
+        retVal += charSpecial.charAt(Math.floor(Math.random() * n));
+    }
+    return retVal;
+  }
+
+async function createDriver(data){
+  let newUser = {};
+   admin.auth().createUser({
+     email: data.email,
+     displayName: data.name,
+     password: data.password
+  }).then((user)=>{
+	newUser = user;
+  });
+  return newUser;
+}
+
+//[CREATE DRIVER END]
