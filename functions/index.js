@@ -160,7 +160,7 @@ async function createJob(data){
   const jobs = await database.collection('jobs');
   const newJob = await jobs.doc(data.id).set({
 	  restaurant: data.restaurant,
-	  location: new admin.firestore.GeoPoint(parseFloat(43.473532), parseFloat(-3.785637)),
+	  location: new admin.firestore.GeoPoint(parseFloat(13.707601), parseFloat(-89.236493)),
   });
   return newJob;
 }
