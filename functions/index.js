@@ -32,11 +32,11 @@ const { v4: uuidv4 } = require('uuid');
 
 //[Start Register user in database]
 exports.registerUser =  functions.auth.user().onCreate((user)=>{
-  const email = user.email;
-  const name = user.displayName;
-  const userId = user.uid;
-  const phone = user.phoneNumber;
-  return createStripeCustomer(name,email,userId);
+ // const email = user.email;
+ // const name = user.displayName;
+ // const userId = user.uid;
+  //const phone = user.phoneNumber;
+  //return createStripeCustomer(name,email,userId);
 });
 
 //[End Register user in database]
@@ -54,8 +54,8 @@ async function addUser(name,email,id,customer){
   let response = {};
   const setData = await session.run(`create (p:person{
 	  id: $id,
-	  email: $email, 
-	  verified: true, 
+	  email: $email,
+	  verified: true,
 	  type: 1,
 	  customerId: $customerId
        }) return p`,{
@@ -138,22 +138,32 @@ async function createDelivery(data){
   const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
   	destination:  new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
+	location: new admin.firestore.GeoPoint(parseFloat(13.707601), parseFloat(-89.236493)),
 	restaurant: data.restaurant,
   	state: 0,
 	reference: data.reference
   });
   return newRegister; 
 }
+//
 //[Create Delivey End]
 
 //[Create JOB START]
 exports.createJobForDriver = functions.firestore.document('/deliveries/{deliveryid}').onUpdate(async (change,context)=>{
 	const after = change.after.data();
 	if(parseInt(after.state) === 3){
-	  let newData = await createJob({id:context.params.deliveryid,...after});
+	  //let newData = await createJob({id:context.params.deliveryid,...after});
+	  assignDeliveryOnDriver({id:context.params.deliveryid,...after})
 	}
 	return "HEY:"
 });
+
+async function assignDeliveryOnDriver(data){
+  const database = admin.firestore();
+  const jobs = await database.collection('drives').where('deliveryId','==',null).limit(1).get();
+  console.log(JSON.stringify(jobs))
+
+}
 
 async function createJob(data){
   const database = admin.firestore();
@@ -202,7 +212,7 @@ function generatePassword(){
 
 async function createDriver(data){
   let newUser = {};
-   admin.auth().createUser({
+   await admin.auth().createUser({
      email: data.email,
      displayName: data.name,
      password: data.password
@@ -210,6 +220,7 @@ async function createDriver(data){
 	console.log(JSON.stringify(user))
 	newUser = user;
 	await claimForDriver(newUser.uid);
+	await createDriverOnCollection({driverId: newUser.uid,location:''})
   });
   return newUser;
 }
@@ -221,15 +232,67 @@ async function claimForDriver(id){
 	console.log('Se agrego un permiso de driver');
 	done = true;
    });
-   return done;
 }
 //[CREATE DRIVER END]
 
+//[ASSIGN DRIVER TO JOB START]
 exports.assignDriverToJob = functions.firestore.document('jobs/{jobid}').onCreate(async (job,context)=>{
   const database = admin.firestore();
   const data = await database.collection('drivers').get();
   data.docs.map(doc => {console.log(JSON.stringify(doc.id))});
-  /*data.docs.forEach((value,key)=>{
-	value.data.
-  });*/
+  data.docs.forEach((value,key)=>{
+	if(value.deliveryId === null){
+		console.log(key)
+	}
+  });
 });
+//[ASSIGN DRIVER TO JOB END]
+
+//[CREATE DRIVER DOCUMENT START]
+exports.createDriversDocument = functions.https.onRequest((req,res)=>{
+  return cors(req,res, async ()=>{
+	let newCollection = await createDriverOnCollection(req.body);
+	res.status(200).send(JSON.stringify(newCollection))
+  })
+});
+
+
+async function createDriverOnCollection(data){
+  const database = admin.firestore();
+  const drivers = await database.collection('drivers');
+  const newRegister = await drivers.doc(data.driverId).set({
+	location: null,
+	deliveryId:null,
+	active:false,
+	jobAccepted:false
+  });
+  return newRegister; 
+}
+//[CREATE DRIVER DOCUMENT END]
+
+//[Create Restaurant owner Start]
+exports.createRestaurantOwner = functions.https.onRequest((req,res)=>{
+  return cors(req,res,async ()=>{
+	let newUser = await createRestaurantOwner({uid: req.body.uid,email:req.body.email,password:generatePassword()});
+	console.log(`VAMOS A IMPRIMIR DATA ${JSON.stringify(newUser)}`)
+	res.status(200).send(JSON.stringify({...newUser}));
+  });
+});
+
+async function createRestaurantOwner(data){
+  let newUser = await admin.auth().createUser({
+     uid: data.uid,
+     email: data.email,
+     password: data.password
+  });
+  claimForRestaurantOwner(newUser.uid);
+  return newUser;
+}
+
+async function claimForRestaurantOwner(id){
+   let done = false;
+   admin.auth().setCustomUserClaims(id,{restaurant:true}).then(()=>{
+	console.log('restaurant owner added');
+	done = true;
+   });
+}
