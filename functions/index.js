@@ -141,7 +141,9 @@ async function createDelivery(data){
 	location: new admin.firestore.GeoPoint(parseFloat(13.707601), parseFloat(-89.236493)),
 	restaurant: data.restaurant,
   	state: 0,
-	reference: data.reference
+	reference: data.reference,
+	owner: data.owner,
+	items: data.items
   });
   return newRegister; 
 }
