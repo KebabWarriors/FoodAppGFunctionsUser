@@ -138,12 +138,14 @@ async function createDelivery(data){
   const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
   	destination:  new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
-	location: new admin.firestore.GeoPoint(parseFloat(13.707601), parseFloat(-89.236493)),
+	location: null,
 	restaurant: data.restaurant,
   	state: 0,
 	reference: data.reference,
 	owner: data.owner,
-	items: data.items
+	items: data.items,
+	driver: null,
+	restaurantLocation: new admin.firestore.GeoPoint(parseFloat(data.restaurantLocation.lat),parseFloat(data.restaurantLocation.lng))
   });
   return newRegister; 
 }
@@ -153,17 +155,32 @@ async function createDelivery(data){
 //[Create JOB START]
 exports.createJobForDriver = functions.firestore.document('/deliveries/{deliveryid}').onUpdate(async (change,context)=>{
 	const after = change.after.data();
-	if(parseInt(after.state) === 3){
+	if(parseInt(after.state) === 3 && (after.driver === undefined || after.driver === "" || after.driver === null)){
 	  //let newData = await createJob({id:context.params.deliveryid,...after});
 	  assignDeliveryOnDriver({id:context.params.deliveryid,...after})
 	}
-	return "HEY:"
 });
 
 async function assignDeliveryOnDriver(data){
   const database = admin.firestore();
-  const jobs = await database.collection('drives').where('deliveryId','==',null).limit(1).get();
-  console.log(JSON.stringify(jobs))
+  let driverId;
+  const jobs = await database.collection('drivers').where('deliveryId','==',null).where('active','==',true).limit(1).get();
+  if(jobs.empty){
+	console.log('No matching results')
+  }
+  else{
+     jobs.forEach(job =>{
+	driverId = job.id;
+  	console.log(JSON.stringify(job.id))
+     });
+     await database.collection('deliveries').doc(data.id).update({
+	     driver: driverId
+     });
+
+     await database.collection('drivers').doc(driverId).update({
+	     deliveryId: data.id
+     });
+ }
 
 }
 
