@@ -30,6 +30,13 @@ const stripe = Stripe("sk_test_51H4UivJ0n1vUgoZKN5bPsWmydn1JBhAjNxVc9tr66z8bt9p1
 const { v4: uuidv4 } = require('uuid');
 
 
+//saving images on Cloud Storage
+
+const { createWriteStream } = require("fs");                                                                                                    
+const { Storage } = require("@google-cloud/storage");
+const path = require("path");
+
+
 //[Start Register user in database]
 exports.registerUser =  functions.auth.user().onCreate((user)=>{
  // const email = user.email;
@@ -135,6 +142,7 @@ exports.createDelivery = functions.https.onRequest((req,res)=>{
 async function createDelivery(data){
   const database = admin.firestore();
   const deliveries = await database.collection('deliveries');
+  console.log(JSON.stringify(data));
   const newRegister = await deliveries.doc(data.deliveryid).set({
   	client: data.client,
   	destination:  new admin.firestore.GeoPoint(parseFloat(data.destination.lat),parseFloat(data.destination.lng)),
@@ -146,7 +154,9 @@ async function createDelivery(data){
 	items: data.items,
 	driver: null,
 	restaurantLocation: new admin.firestore.GeoPoint(parseFloat(data.restaurantLocation.lat),parseFloat(data.restaurantLocation.lng)),
-	restaurantName: data.restaurantName
+	restaurantName: data.restaurantName,
+	price: data.price,
+	type: 0
   });
   return newRegister; 
 }
@@ -158,7 +168,7 @@ exports.createJobForDriver = functions.firestore.document('/deliveries/{delivery
 	const after = change.after.data();
 	if(parseInt(after.state) === 3 && (after.driver === undefined || after.driver === "" || after.driver === null)){
 	  //let newData = await createJob({id:context.params.deliveryid,...after});
-	  assignDeliveryOnDriver({id:context.params.deliveryid,...after})
+	  return assignDeliveryOnDriver({id:context.params.deliveryid,...after})
 	}
 });
 
@@ -181,6 +191,7 @@ async function assignDeliveryOnDriver(data){
      await database.collection('drivers').doc(driverId).update({
 	     deliveryId: data.id
      });
+	return jobs;
  }
 
 }
@@ -199,8 +210,9 @@ async function createJob(data){
 //[CREATE DRIVER START]
 exports.createDriver = functions.https.onRequest((req,res)=>{
   return cors(req,res,async ()=>{ 
+	console.log(JSON.stringify(req.body))
 	let newDriver = await createDriver({email: req.body.email,name: req.body.name, password: generatePassword()})
-	res.status(200).send(JSON.stringify(newDriver))
+	res.status(200).send(JSON.stringify({...newDriver}))
   });
 });
 
@@ -232,9 +244,11 @@ function generatePassword(){
 
 async function createDriver(data){
   let newUser = {};
-   await admin.auth().createUser({
+	console.log(`Data driver ${JSON.stringify(data)}`)
+    await admin.auth().createUser({
      email: data.email,
      displayName: data.name,
+     emailVerified: true,
      password: data.password
   }).then(async (user)=>{
 	console.log(JSON.stringify(user))
@@ -315,4 +329,27 @@ async function claimForRestaurantOwner(id){
 	console.log('restaurant owner added');
 	done = true;
    });
+}
+
+//Start delete driver
+
+exports.deleteDriver = functions.https.onRequest((req,res)=>{
+  return cors(req,res,async ()=>{
+	console.log(JSON.stringify(req.body))
+	let response = await deleteDriver(req.body.id);
+	if(!response){
+	  res.status(201).send(JSON.stringify({response:false}));
+	}else{
+	  res.status(200).send(JSON.stringify({response: true}));
+	}
+  });
+});
+
+async function deleteDriver(id){
+  let response = false;
+   await admin.auth().deleteUser(id).then(()=>{
+	console.log(`USER DELETED`)
+	response = true;
+  }); 
+  return response;
 }
