@@ -39,11 +39,11 @@ const path = require("path");
 
 //[Start Register user in database]
 exports.registerUser =  functions.auth.user().onCreate((user)=>{
- // const email = user.email;
- // const name = user.displayName;
- // const userId = user.uid;
+  const email = user.email;
+  const name = user.displayName;
+  const userId = user.uid;
   //const phone = user.phoneNumber;
-  //return createStripeCustomer(name,email,userId);
+  return createStripeCustomer(name,email,userId);
 });
 
 //[End Register user in database]
@@ -255,8 +255,16 @@ async function createDriver(data){
 	newUser = user;
 	await claimForDriver(newUser.uid);
 	await createDriverOnCollection({driverId: newUser.uid,location:''})
+	admin.auth().generatePasswordResetLink(data.email).then((done)=>{
+		console.log(`SEND EMAIL ${done}`)
+	}).catch((error)=>{console.log(`error ${error}`)});
+//	sendResetEmailForDriver(data.email)	
   });
   return newUser;
+}
+async function sendResetEmailForDriver(email){
+     admin.auth().generatePasswordResetLink(email).catch(error=>console.log(error));
+
 }
 
 async function claimForDriver(id){
@@ -309,7 +317,7 @@ exports.createRestaurantOwner = functions.https.onRequest((req,res)=>{
   return cors(req,res,async ()=>{
 	let newUser = await createRestaurantOwner({uid: req.body.uid,email:req.body.email,password:generatePassword()});
 	console.log(`VAMOS A IMPRIMIR DATA ${JSON.stringify(newUser)}`)
-	res.status(200).send(JSON.stringify({...newUser}));
+	res.status(200).send(JSON.stringify(newUser));
   });
 });
 
@@ -353,3 +361,42 @@ async function deleteDriver(id){
   }); 
   return response;
 }
+
+//Ends delete driver
+
+
+
+exports.newDriverForDelivery = functions.firestore.document('/drivers/{driverId}').onUpdate(async (change,context)=>{
+	const after = change.after.data();
+	const before = change.before.data();
+	if(after.deliveryId === null && before.deliveryId !== null){
+		return await assignDeliveryOnNewDriver(before,context.params.driverId);
+	}
+});
+
+async function assignDeliveryOnNewDriver(data,id){
+  const database = admin.firestore();
+  let driverId;
+  const jobs = await database.collection('drivers').where('deliveryId','==',null).where('active','==',true).get();
+  if(jobs.empty){
+	console.log('No matching results')
+  }
+  else{
+      const newJob = jobs.then((snapshot)=>{
+	  return snapshot.docs.find((driver)=>{
+		return driver.id !== id;
+	  });
+	});
+     await database.collection('deliveries').doc(data.deliveryId).update({
+	     driver: newJob
+     });
+
+     await database.collection('drivers').doc(id).update({
+	     deliveryId: data.deliveryId
+     });
+	return jobs;
+ }
+
+}
+
+
